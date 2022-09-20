@@ -1,3 +1,11 @@
+"""
+NEURAL STYLE TRANSFER SCRIPT
+
+Author: Danis Alukaev
+Email: d.alukaev@innopolis.university
+Group: B19-DS-01
+"""
+
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -20,6 +28,7 @@ STYLE_LAYERS = [
     ('conv4_1', 0.2),
     ('conv5_1', 0.2)]
 
+
 def compute_content_cost(a_C, a_G):
     """
     Computes the content cost
@@ -37,7 +46,7 @@ def compute_content_cost(a_C, a_G):
     
     shape = [n_B, n_C, n_H * n_W]
     _a_C, _a_G = tf.reshape(a_C, shape), tf.reshape(a_G, shape)
-    J_content = tf.reduce_sum(tf.square(_a_C - _a_G)) / (4 * n_H * n_W * n_C)
+    J_content = tf.reduce_sum(tf.square(tf.subtract(_a_C, _a_G))) / (4 * n_H * n_W * n_C)
     
     return J_content
 
@@ -103,7 +112,6 @@ def compute_style_cost(sess, model, STYLE_LAYERS):
         # when we run the session, this will be the activations drawn from the appropriate layer, with G as input.
         a_G = out
         
-        # TODO: ask Aidar
         a_S = tf.convert_to_tensor(a_S)
         
         # Compute style_cost for the current layer
@@ -131,41 +139,95 @@ def total_cost(J_content, J_style, alpha = 10, beta = 40):
     return J
 
 def start_session():
+    """Creates new Tensorflow session."""
     tf.reset_default_graph()
     sess = tf.InteractiveSession()
     return sess
 
 def load_image(img_path):
+    """Loads and preprocess image.
+    
+    Arguments:
+    img_path -- path to an image
+
+    Returns:
+    image -- reshaped and normalized image
+    """
     image = scipy.misc.imread(img_path)
     if img_path[-4:] == ".png":
         image = image[:, :, :3] 
+    image = scipy.misc.imresize(image, (300, 400))
     image = reshape_and_normalize_image(image)
     return image
 
 def configure_content_loss(sess, model, content_image):
+    """Configures content loss.
+
+    Arguments: 
+    sess -- Tensorflow session to work as a part of
+    model -- model which weights should be optimized
+    content_image -- content image
+
+    Returns:
+    J_content -- content loss function
+    """
     sess.run(model['input'].assign(content_image))
     out = model['conv4_2']
     a_C = sess.run(out)
-
-    # TODO: ask Aidar if I can do so
     a_C = tf.convert_to_tensor(a_C)
-
     a_G = out
     J_content = compute_content_cost(a_C, a_G)
     return J_content
 
 def configure_style_loss(sess, model, style_image):
+    """Configures style loss.
+
+    Arguments: 
+    sess -- Tensorflow session to work as a part of
+    model -- model which weights should be optimized
+    style_image -- style image
+
+    Returns:
+    J_style -- style loss function
+    """
     sess.run(model['input'].assign(style_image))
     J_style = compute_style_cost(sess, model, STYLE_LAYERS)
     return J_style
 
 def configure_total_loss(sess, model, content_image, style_image, a=10, b=40):
+    """Configures loss function.
+    
+    Arguments: 
+    sess -- Tensorflow session to work as a part of
+    model -- model which weights should be optimized
+    content_image -- content image
+    style_image -- style image
+    a -- hyperparameter weighting the importance of the content cost
+    b -- hyperparameter weighting the importance of the style cost
+
+    Returns:
+    J -- loss function
+    """
     J_content = configure_content_loss(sess, model, content_image)
     J_style = configure_style_loss(sess, model, style_image)
     J = total_cost(J_content, J_style, alpha=a, beta=b)
     return J_content, J_style, J
 
 def model_nn(sess, model, input_image, content_image, style_image, generated_path, num_iterations=200):
+    """Defines training loop for a model.
+    
+    Arguments: 
+    sess -- Tensorflow session to work as a part of
+    model -- model which weights should be optimized
+    input_image -- initialization of image
+    content_image -- content image
+    style_image -- style image
+    generated_path -- path where final result should be stored
+    num_iterations -- number of epochs
+
+    Returns:
+    generated_image -- resultant image of style transfering
+    """
     J_content, J_style, J = configure_total_loss(sess, model, content_image, style_image)
     optimizer = tf.train.AdamOptimizer(2.0)
     train_step = optimizer.minimize(J)
@@ -180,7 +242,7 @@ def model_nn(sess, model, input_image, content_image, style_image, generated_pat
     for i in range(num_iterations):
         sess.run(train_step)
         generated_image = sess.run(model['input'])
-        if i % 1 == 0:
+        if i % 20 == 0:
             Jt, Jc, Js = sess.run([J, J_content, J_style])
             print("Iteration " + str(i) + " :")
             print("total cost = " + str(Jt))
@@ -195,6 +257,7 @@ def main():
     m = "The command should contain paths to content, style and generated images"
     assert len(sys.argv) == 4, m
     content_path, style_path, generated_path = sys.argv[1:]
+
     content_image, style_image = load_image(content_path), load_image(style_path)
     generated_image = generate_noise_image(content_image)
     print("Content and style images were loaded successfully!")
