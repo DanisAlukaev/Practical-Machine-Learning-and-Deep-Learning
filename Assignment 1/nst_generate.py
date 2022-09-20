@@ -180,7 +180,7 @@ def model_nn(sess, model, input_image, content_image, style_image, generated_pat
     for i in range(num_iterations):
         sess.run(train_step)
         generated_image = sess.run(model['input'])
-        if i % 20 == 0:
+        if i % 1 == 0:
             Jt, Jc, Js = sess.run([J, J_content, J_style])
             print("Iteration " + str(i) + " :")
             print("total cost = " + str(Jt))
